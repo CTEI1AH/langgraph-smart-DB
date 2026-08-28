@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+websockets
+openai
+python-dotenv
+asyncpg
+pgvector
