@@ -1,7 +1,16 @@
 fastapi
 uvicorn
 websockets
-openai
 python-dotenv
 asyncpg
 pgvector
+openai
+httpx
+pydantic-settings
+langchain-core
+langchain-openai
+langgraph
+pandas
+openpyxl
+pymupdf
+python-docx

@@ -22,8 +22,13 @@ async def init_db(conn):
             filename TEXT,
             chunk_index INTEGER,
             content TEXT,
-            embedding VECTOR
+            embedding VECTOR,
+            -- ДОБАВЛЯЕМ КОЛОНКУ ДЛЯ ТЕКСТОВОГО ПОИСКА FTS (АВТОМАТИЧЕСКИ ЗАПОЛНЯЕТСЯ)
+            fts_vector tsvector GENERATED ALWAYS AS (to_tsvector('russian', content)) STORED
         );
+        -- Создаем индекс для молниеносного текстового поиска
+        CREATE INDEX IF NOT EXISTS fts_idx ON documents USING GIN (fts_vector);
+        
         CREATE TABLE IF NOT EXISTS file_sync_state (
             filepath TEXT PRIMARY KEY,
             file_hash TEXT
@@ -36,22 +41,18 @@ async def run():
 
     for root, _, files in os.walk(TARGET_DIR):
         for file in files:
-            # Игнорируем всё, кроме текстовых файлов, а также пропускаем служебные файлы
-            if not file.endswith(".txt") or file == ".folder_hash" or file == ".info": 
+            if not file.endswith(".txt") or file in [".folder_hash", ".info"]: 
                 continue
             
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, TARGET_DIR)
             
-            # --- УМНОЕ ВОССТАНОВЛЕНИЕ ИМЕНИ ФАЙЛА ---
             original_filename = rel_path
             if original_filename.endswith(".txt"):
-                base_name = original_filename[:-4] # Отрезаем последние 4 символа (.txt)
+                base_name = original_filename[:-4]
                 _, ext = os.path.splitext(base_name)
-                # Если перед .txt было другое нормальное расширение, оставляем base_name
                 if ext.lower() in ['.pdf', '.docx', '.xlsx', '.csv', '.md']:
                     original_filename = base_name
-            # ----------------------------------------
 
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()

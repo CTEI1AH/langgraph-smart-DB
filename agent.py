@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage, RemoveMessage
 from langgraph.types import interrupt
 from agent_tools.registry import AGENT_TOOLS
 from config import settings, logger
+from langchain_core.callbacks.manager import adispatch_custom_event
 
 class State(MessagesState):
     summary: str
@@ -25,8 +26,13 @@ async def safe_tool_node(state: State):
     
     # 1. Проверяем, нужна ли санкция человека на инструмент
     for tool_call in last_message.tool_calls:
-        if tool_call["name"] == "update_database":
+        if tool_call["name"] == "trigger_rag_update":
+            # СНАЧАЛА отправляем уведомление на фронтенд/CLI
+            await adispatch_custom_event("hitl_request", {"tool": tool_call["name"], "args": tool_call["args"]})
+            
+            # ЗАТЕМ ставим граф на паузу
             response = interrupt({"action": "hitl", "tool": tool_call["name"], "args": tool_call["args"]})
+            
             if not response.get("approved"):
                 from langchain_core.messages import ToolMessage
                 return {"messages": [ToolMessage(tool_call_id=tool_call["id"], name=tool_call["name"], content="ОТКЛОНЕНО")]}
@@ -39,19 +45,14 @@ async def safe_tool_node(state: State):
     for tool_call in last_message.tool_calls:
         if tool_call["name"] == "save_summary_and_clear_memory":
             logger.info("Агент запустил очистку памяти. Удаляем старые сообщения...")
-            
-            # В LangChain v0.2 args УЖЕ является словарем! Никакого json.loads не нужно.
             args = tool_call.get("args", {})
             new_summary = args.get("new_summary", "")
             
-            # Мы удаляем все сообщения, КРОМЕ последних 2-х 
             msgs_to_remove = [RemoveMessage(id=m.id) for m in state["messages"][:-2]]
             
             if "messages" not in result:
                 result["messages"] = []
             result["messages"].extend(msgs_to_remove)
-            
-            # Сохраняем новую выжимку в состояние
             result["summary"] = new_summary
 
     return result
@@ -67,7 +68,6 @@ async def call_model(state: State):
     if summary:
         sys_prompt += f"\n\n[ВАЖНЫЙ КОНТЕКСТ ИЗ ПРОШЛОГО ОБЩЕНИЯ]:\n{summary}"
         
-    # ДАЕМ АГЕНТУ ЧУВСТВО ВРЕМЕНИ И РАЗМЕРА:
     sys_prompt += f"\n\n[СТАТУС ПАМЯТИ]:\nВ нашей истории сейчас {msg_count} сообщений."
     
     if msg_count >= 8:
@@ -89,7 +89,6 @@ def should_continue(state: State) -> str:
         return "tools"
     return END
 
-# Сборка графа
 workflow = StateGraph(State)
 workflow.add_node("agent", call_model)
 workflow.add_node("tools", safe_tool_node)

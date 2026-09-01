@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
 
@@ -15,7 +18,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Настройка прозрачного логирования (По ТЗ п.9)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

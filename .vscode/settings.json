@@ -1,0 +1,12 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "driver": "PostgreSQL",
+            "connectString": "postgresql://ai_user:ai_pass@localhost:5432/ai_db",
+            "name": "ai_db"
+        }
+    ]
+}
